@@ -1,32 +1,8 @@
 --// ============================================================
---// 🌙 SLEEP MODE - PERSISTENT AUTO REJOIN
+--// 🌙 ULTRA SLEEP REJOIN
+--// PERSISTENT START / STOP
+--// TEST REJOIN
 --// ============================================================
---//
---// START:
---//   Aktiviert die automatische Rejoin-Kette.
---//
---// TEST REJOIN:
---//   Führt sofort einen Rejoin durch.
---//
---// REJOIN:
---//   Übergibt AutoRejoin=true an den nächsten Server.
---//
---// NACH DEM JOIN:
---//   Auto Execute startet das Script erneut.
---//   GetLocalPlayerTeleportData() liest AutoRejoin=true.
---//   Timer startet automatisch wieder.
---//
---// STOP:
---//   Deaktiviert die automatische Kette.
---//
---// Hinweis:
---//   Roblox/Delta können keine 100%-Garantie für Teleports geben.
---// ============================================================
-
-
---==============================================================
--- SERVICES
---==============================================================
 
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
@@ -35,25 +11,69 @@ local CoreGui = game:GetService("CoreGui")
 local Player = Players.LocalPlayer
 local PLACE_ID = game.PlaceId
 
-
---==============================================================
--- SETTINGS
---==============================================================
-
 local REJOIN_TIME = 15 * 60
-
 local RETRY_DELAY = 5
 local MAX_RETRIES = 8
 
-local TELEPORT_FLAG = "AutoRejoin"
-local VERSION = 3
-
+local SAVE_FILE = "SleepMode_AutoRejoin.txt"
 
 --==============================================================
--- TELEPORT DATA
+-- DATEI-FUNKTIONEN
 --==============================================================
 
-local cameFromAutoRejoin = false
+local function canFileSave()
+    return type(readfile) == "function"
+        and type(writefile) == "function"
+end
+
+local function saveState(enabled)
+
+    if not canFileSave() then
+        warn("⚠️ readfile/writefile wird von diesem Executor nicht unterstützt.")
+        return false
+    end
+
+    local success, err = pcall(function()
+
+        writefile(
+            SAVE_FILE,
+            enabled and "ON" or "OFF"
+        )
+
+    end)
+
+    if not success then
+        warn("❌ Konnte Status nicht speichern:", err)
+        return false
+    end
+
+    return true
+end
+
+local function loadState()
+
+    if not canFileSave() then
+        return false
+    end
+
+    local success, result = pcall(function()
+
+        return readfile(SAVE_FILE)
+
+    end)
+
+    if not success then
+        return false
+    end
+
+    return result == "ON"
+end
+
+--==============================================================
+-- TELEPORT-DATEN ALS ZUSÄTZLICHER FALLBACK
+--==============================================================
+
+local teleportState = false
 
 pcall(function()
 
@@ -61,34 +81,32 @@ pcall(function()
 
     if type(data) == "table" then
 
-        if data[TELEPORT_FLAG] == true
-            and data.Version == VERSION then
-
-            cameFromAutoRejoin = true
-
+        if data.AutoRejoin == true then
+            teleportState = true
         end
 
     end
 
 end)
 
-
 --==============================================================
--- VARIABLES
+-- STATUS LADEN
 --==============================================================
 
-local running = cameFromAutoRejoin
+local savedState = loadState()
+
+local running = savedState or teleportState
+
 local teleporting = false
 local remaining = REJOIN_TIME
 
-
 --==============================================================
--- REMOVE OLD GUI
+-- ALTES GUI ENTFERNEN
 --==============================================================
 
 pcall(function()
 
-    local old = CoreGui:FindFirstChild("SleepModeAutoRejoin")
+    local old = CoreGui:FindFirstChild("UltraSleepRejoin")
 
     if old then
         old:Destroy()
@@ -96,17 +114,15 @@ pcall(function()
 
 end)
 
-
 --==============================================================
 -- GUI
 --==============================================================
 
 local Gui = Instance.new("ScreenGui")
 
-Gui.Name = "SleepModeAutoRejoin"
+Gui.Name = "UltraSleepRejoin"
 Gui.ResetOnSpawn = false
 Gui.IgnoreGuiInset = true
-Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 pcall(function()
     Gui.Parent = CoreGui
@@ -116,36 +132,24 @@ if not Gui.Parent then
     Gui.Parent = Player:WaitForChild("PlayerGui")
 end
 
-
 --==============================================================
--- MAIN FRAME
+-- FRAME
 --==============================================================
 
 local Frame = Instance.new("Frame")
 
-Frame.Name = "Main"
-Frame.Size = UDim2.new(0, 300, 0, 215)
-Frame.Position = UDim2.new(0.5, -150, 0.5, -107)
+Frame.Size = UDim2.new(0, 310, 0, 225)
+Frame.Position = UDim2.new(0.5, -155, 0.5, -112)
 
-Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 Frame.BorderSizePixel = 0
 
 Frame.Parent = Gui
 
+local Corner = Instance.new("UICorner")
 
-local FrameCorner = Instance.new("UICorner")
-
-FrameCorner.CornerRadius = UDim.new(0, 12)
-FrameCorner.Parent = Frame
-
-
-local FrameStroke = Instance.new("UIStroke")
-
-FrameStroke.Thickness = 1
-FrameStroke.Transparency = 0.4
-
-FrameStroke.Parent = Frame
-
+Corner.CornerRadius = UDim.new(0,12)
+Corner.Parent = Frame
 
 --==============================================================
 -- TITLE
@@ -153,19 +157,18 @@ FrameStroke.Parent = Frame
 
 local Title = Instance.new("TextLabel")
 
-Title.Size = UDim2.new(1, -20, 0, 35)
-Title.Position = UDim2.new(0, 10, 0, 5)
+Title.Size = UDim2.new(1,-20,0,35)
+Title.Position = UDim2.new(0,10,0,5)
 
 Title.BackgroundTransparency = 1
 
-Title.Text = "🌙 SLEEP MODE"
-Title.TextColor3 = Color3.new(1, 1, 1)
+Title.Text = "🌙 ULTRA SLEEP MODE"
+Title.TextColor3 = Color3.new(1,1,1)
 
 Title.TextSize = 18
 Title.Font = Enum.Font.GothamBold
 
 Title.Parent = Frame
-
 
 --==============================================================
 -- STATUS
@@ -173,8 +176,8 @@ Title.Parent = Frame
 
 local Status = Instance.new("TextLabel")
 
-Status.Size = UDim2.new(1, -20, 0, 24)
-Status.Position = UDim2.new(0, 10, 0, 40)
+Status.Size = UDim2.new(1,-20,0,25)
+Status.Position = UDim2.new(0,10,0,42)
 
 Status.BackgroundTransparency = 1
 
@@ -183,40 +186,39 @@ Status.Font = Enum.Font.Gotham
 
 Status.Parent = Frame
 
-
 --==============================================================
 -- TIMER
 --==============================================================
 
 local Timer = Instance.new("TextLabel")
 
-Timer.Size = UDim2.new(1, -20, 0, 40)
-Timer.Position = UDim2.new(0, 10, 0, 67)
+Timer.Size = UDim2.new(1,-20,0,40)
+Timer.Position = UDim2.new(0,10,0,68)
 
 Timer.BackgroundTransparency = 1
 
-Timer.TextColor3 = Color3.new(1, 1, 1)
+Timer.TextColor3 = Color3.new(1,1,1)
 
 Timer.TextSize = 27
 Timer.Font = Enum.Font.GothamBold
 
 Timer.Parent = Frame
 
-
 --==============================================================
--- START BUTTON
+-- START
 --==============================================================
 
 local Start = Instance.new("TextButton")
 
-Start.Size = UDim2.new(0.48, -5, 0, 36)
-Start.Position = UDim2.new(0, 10, 1, -82)
+Start.Size = UDim2.new(0.48,-5,0,36)
+Start.Position = UDim2.new(0,10,1,-82)
 
-Start.BackgroundColor3 = Color3.fromRGB(45, 175, 80)
+Start.BackgroundColor3 = Color3.fromRGB(45,175,80)
 
 Start.Text = "▶ START"
 
-Start.TextColor3 = Color3.new(1, 1, 1)
+Start.TextColor3 = Color3.new(1,1,1)
+
 Start.TextSize = 14
 Start.Font = Enum.Font.GothamBold
 
@@ -224,27 +226,26 @@ Start.BorderSizePixel = 0
 
 Start.Parent = Frame
 
-
 local StartCorner = Instance.new("UICorner")
 
-StartCorner.CornerRadius = UDim.new(0, 8)
+StartCorner.CornerRadius = UDim.new(0,8)
 StartCorner.Parent = Start
 
-
 --==============================================================
--- STOP BUTTON
+-- STOP
 --==============================================================
 
 local Stop = Instance.new("TextButton")
 
-Stop.Size = UDim2.new(0.48, -5, 0, 36)
-Stop.Position = UDim2.new(0.52, 0, 1, -82)
+Stop.Size = UDim2.new(0.48,-5,0,36)
+Stop.Position = UDim2.new(0.52,0,1,-82)
 
-Stop.BackgroundColor3 = Color3.fromRGB(180, 55, 55)
+Stop.BackgroundColor3 = Color3.fromRGB(180,55,55)
 
 Stop.Text = "■ STOP"
 
-Stop.TextColor3 = Color3.new(1, 1, 1)
+Stop.TextColor3 = Color3.new(1,1,1)
+
 Stop.TextSize = 14
 Stop.Font = Enum.Font.GothamBold
 
@@ -252,27 +253,25 @@ Stop.BorderSizePixel = 0
 
 Stop.Parent = Frame
 
-
 local StopCorner = Instance.new("UICorner")
 
-StopCorner.CornerRadius = UDim.new(0, 8)
+StopCorner.CornerRadius = UDim.new(0,8)
 StopCorner.Parent = Stop
 
-
 --==============================================================
--- TEST BUTTON
+-- TEST
 --==============================================================
 
 local Test = Instance.new("TextButton")
 
-Test.Size = UDim2.new(1, -20, 0, 36)
-Test.Position = UDim2.new(0, 10, 1, -40)
+Test.Size = UDim2.new(1,-20,0,36)
+Test.Position = UDim2.new(0,10,1,-40)
 
-Test.BackgroundColor3 = Color3.fromRGB(65, 95, 180)
+Test.BackgroundColor3 = Color3.fromRGB(65,95,180)
 
 Test.Text = "🧪 TEST REJOIN"
 
-Test.TextColor3 = Color3.new(1, 1, 1)
+Test.TextColor3 = Color3.new(1,1,1)
 
 Test.TextSize = 14
 Test.Font = Enum.Font.GothamBold
@@ -281,68 +280,61 @@ Test.BorderSizePixel = 0
 
 Test.Parent = Frame
 
-
 local TestCorner = Instance.new("UICorner")
 
-TestCorner.CornerRadius = UDim.new(0, 8)
+TestCorner.CornerRadius = UDim.new(0,8)
 TestCorner.Parent = Test
 
-
 --==============================================================
--- FORMAT TIME
+-- TIME
 --==============================================================
 
 local function formatTime(seconds)
 
-    seconds = math.max(0, math.floor(seconds))
+    seconds = math.max(0,math.floor(seconds))
 
-    local minutes = math.floor(seconds / 60)
+    local minutes = math.floor(seconds/60)
     local secs = seconds % 60
 
-    return string.format("%02d:%02d", minutes, secs)
+    return string.format("%02d:%02d",minutes,secs)
 
 end
-
 
 --==============================================================
 -- STATUS
 --==============================================================
 
-local function setStatus(text, color)
+local function setStatus(text,color)
 
-    Status.Text = "Status: " .. text
-
-    if color then
-        Status.TextColor3 = color
-    end
+    Status.Text = "Status: "..text
+    Status.TextColor3 = color
 
 end
 
-
 --==============================================================
--- CREATE TELEPORT DATA
+-- TELEPORT DATA
 --==============================================================
 
-local function getTeleportData()
+local function createOptions()
 
-    return {
+    local options = Instance.new("TeleportOptions")
 
-        [TELEPORT_FLAG] = true,
+    options:SetTeleportData({
 
-        Version = VERSION,
+        AutoRejoin = true,
+        Version = 4
 
-        Timestamp = os.time()
+    })
 
-    }
+    return options
 
 end
-
 
 --==============================================================
 -- REJOIN
 --==============================================================
 
-local function Rejoin()
+local function rejoin()
 
     if teleporting then
         return
@@ -350,82 +342,52 @@ local function Rejoin()
 
     teleporting = true
 
-    -- Ganz wichtig:
-    -- Vor jedem Rejoin wird der Zustand auf aktiv gesetzt.
-    -- Dadurch soll der nächste Server wieder automatisch
-    -- in den 15-Minuten-Modus gehen.
+    -- VOR dem Rejoin speichern!
+    saveState(true)
 
     running = true
 
     setStatus(
         "Rejoin wird gestartet...",
-        Color3.fromRGB(255, 210, 70)
+        Color3.fromRGB(255,210,70)
     )
 
     Timer.Text = "REJOIN..."
 
-    print("==============================================")
-    print("🌙 SLEEP MODE")
-    print("🔄 REJOIN")
-    print("📍 PlaceId:", PLACE_ID)
-    print("🔒 AutoRejoin = TRUE")
-    print("==============================================")
+    print("==========================================")
+    print("🌙 SLEEP MODE REJOIN")
+    print("🔒 Status gespeichert: ON")
+    print("==========================================")
 
 
-    --==========================================================
-    -- RETRY LOOP
-    --==========================================================
-
-    for attempt = 1, MAX_RETRIES do
+    for attempt = 1,MAX_RETRIES do
 
         if not Player or not Player.Parent then
             return
         end
 
-
         setStatus(
-            "Rejoin " .. attempt .. "/" .. MAX_RETRIES,
-            Color3.fromRGB(255, 210, 70)
+            "Rejoin "..attempt.."/"..MAX_RETRIES,
+            Color3.fromRGB(255,210,70)
         )
 
+        print("🚀 Versuch:",attempt)
 
-        print(
-            "🚀 Teleport Versuch "
-            .. attempt
-            .. "/"
-            .. MAX_RETRIES
-        )
+        local success,err = pcall(function()
 
-
-        local success, errorMessage = pcall(function()
-
-            -- CLIENT-SAFE TELEPORT
-            --
-            -- Die Teleport-Daten werden direkt mitgegeben.
-            -- Der nächste Client kann sie über
-            -- GetLocalPlayerTeleportData() lesen.
-
-            TeleportService:Teleport(
+            TeleportService:TeleportAsync(
                 PLACE_ID,
-                Player,
-                getTeleportData()
+                {Player},
+                createOptions()
             )
 
         end)
-
 
         if success then
 
             print("✅ Teleport-Aufruf erfolgreich")
 
-            -- Wir warten, damit Roblox den Teleport
-            -- durchführen kann.
-
             task.wait(RETRY_DELAY)
-
-
-            -- Wenn wir noch im alten Server sind,
-            -- versuchen wir es erneut.
 
             if not Player.Parent then
                 return
@@ -433,8 +395,7 @@ local function Rejoin()
 
         else
 
-            warn("❌ Teleport fehlgeschlagen:")
-            warn(errorMessage)
+            warn("❌ Teleport Fehler:",err)
 
             task.wait(RETRY_DELAY)
 
@@ -444,21 +405,18 @@ local function Rejoin()
 
 
     --==========================================================
-    -- FINAL FALLBACK
+    -- FALLBACK
     --==========================================================
 
     if Player and Player.Parent then
 
-        warn("⚠️ Normale Teleport-Versuche fehlgeschlagen.")
-        warn("🔁 Letzter Versuch...")
-
+        warn("⚠️ Fallback-Rejoin")
 
         pcall(function()
 
             TeleportService:Teleport(
                 PLACE_ID,
-                Player,
-                getTeleportData()
+                Player
             )
 
         end)
@@ -466,7 +424,6 @@ local function Rejoin()
     end
 
 end
-
 
 --==============================================================
 -- START
@@ -478,29 +435,26 @@ Start.MouseButton1Click:Connect(function()
         return
     end
 
-
     running = true
-
     remaining = REJOIN_TIME
 
+    -- DAUERHAFT SPEICHERN
+    saveState(true)
 
     setStatus(
-        "Aktiv",
-        Color3.fromRGB(80, 255, 120)
+        "AKTIV",
+        Color3.fromRGB(80,255,120)
     )
-
 
     Timer.Text = formatTime(remaining)
 
-
-    print("==============================================")
-    print("✅ SLEEP MODE AKTIV")
+    print("==========================================")
+    print("✅ AUTO REJOIN AKTIV")
+    print("💾 Status gespeichert: ON")
     print("⏱️ 15 Minuten")
-    print("🔄 Danach automatischer Rejoin")
-    print("==============================================")
+    print("==========================================")
 
 end)
-
 
 --==============================================================
 -- STOP
@@ -510,28 +464,27 @@ Stop.MouseButton1Click:Connect(function()
 
     running = false
     teleporting = false
-
     remaining = REJOIN_TIME
 
+    -- DAUERHAFT DEAKTIVIEREN
+    saveState(false)
 
     setStatus(
-        "Gestoppt",
-        Color3.fromRGB(255, 80, 80)
+        "GESTOPPT",
+        Color3.fromRGB(255,80,80)
     )
-
 
     Timer.Text = formatTime(REJOIN_TIME)
 
-
-    print("==============================================")
-    print("⛔ SLEEP MODE GESTOPPT")
-    print("==============================================")
+    print("==========================================")
+    print("⛔ AUTO REJOIN AUS")
+    print("💾 Status gespeichert: OFF")
+    print("==========================================")
 
 end)
 
-
 --==============================================================
--- TEST REJOIN
+-- TEST
 --==============================================================
 
 Test.MouseButton1Click:Connect(function()
@@ -540,37 +493,30 @@ Test.MouseButton1Click:Connect(function()
         return
     end
 
-
-    -- Der Test aktiviert die Kette ebenfalls.
+    -- TEST aktiviert die dauerhafte Kette
     running = true
 
-    remaining = 0
-
+    saveState(true)
 
     setStatus(
         "TEST REJOIN...",
-        Color3.fromRGB(100, 170, 255)
+        Color3.fromRGB(100,170,255)
     )
-
 
     Timer.Text = "TEST"
 
-
-    print("==============================================")
+    print("==========================================")
     print("🧪 TEST REJOIN")
-    print("🔒 AutoRejoin = TRUE")
-    print("🔄 Sofortiger Rejoin")
-    print("==============================================")
-
+    print("💾 Status gespeichert: ON")
+    print("==========================================")
 
     task.spawn(function()
 
-        Rejoin()
+        rejoin()
 
     end)
 
 end)
-
 
 --==============================================================
 -- TIMER
@@ -582,20 +528,16 @@ task.spawn(function()
 
         task.wait(1)
 
-
         if running and not teleporting then
 
             remaining -= 1
-
 
             if remaining <= 0 then
 
                 remaining = REJOIN_TIME
 
                 task.spawn(function()
-
-                    Rejoin()
-
+                    rejoin()
                 end)
 
             else
@@ -610,49 +552,41 @@ task.spawn(function()
 
 end)
 
-
 --==============================================================
--- INITIAL STATE
+-- STARTZUSTAND
 --==============================================================
 
-if cameFromAutoRejoin then
+if running then
 
-    running = true
     remaining = REJOIN_TIME
 
-
     setStatus(
-        "Nach Rejoin automatisch aktiv",
-        Color3.fromRGB(80, 255, 120)
+        "AUTOMATISCH AKTIV",
+        Color3.fromRGB(80,255,120)
     )
-
 
     Timer.Text = formatTime(REJOIN_TIME)
 
-
-    print("==============================================")
-    print("🎉 AUTO REJOIN ERKANNT")
-    print("✅ STATUS WIEDERHERGESTELLT")
-    print("⏱️ NEUER TIMER: 15:00")
-    print("==============================================")
-
+    print("==========================================")
+    print("🎉 GESPEICHERTER STATUS GEFUNDEN")
+    print("🔄 AUTO REJOIN WIRD FORTGESETZT")
+    print("⏱️ 15:00")
+    print("==========================================")
 
 else
 
     setStatus(
-        "Bereit",
-        Color3.fromRGB(255, 210, 70)
+        "BEREIT",
+        Color3.fromRGB(255,210,70)
     )
-
 
     Timer.Text = formatTime(REJOIN_TIME)
 
-
-    print("==============================================")
+    print("==========================================")
     print("🌙 SLEEP MODE GELADEN")
     print("▶ START = aktivieren")
     print("🧪 TEST = sofort testen")
-    print("■ STOP = deaktivieren")
-    print("==============================================")
+    print("■ STOP = dauerhaft deaktivieren")
+    print("==========================================")
 
 end
